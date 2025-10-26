@@ -14,11 +14,27 @@ from users.models import User
 
 
 def delete_auth(folder_model):
-    QuerySet(WorkspaceUserResourcePermission).filter(target__in=QuerySet(folder_model).values_list('id')).delete()
+    # Check if the folder table exists before querying
+    from django.db import connection
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.{}')".format(folder_model._meta.db_table))
+        table_exists = cursor.fetchone()[0] is not None
+
+    if table_exists:
+        QuerySet(WorkspaceUserResourcePermission).filter(target__in=QuerySet(folder_model).values_list('id')).delete()
 
 
 def get_workspace_user_resource_permission_list(auth_target_type, workspace_user_role_mapping_model_workspace_dict,
                                                 folder_model):
+    # Check if the folder table exists before querying
+    from django.db import connection
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.{}')".format(folder_model._meta.db_table))
+        table_exists = cursor.fetchone()[0] is not None
+
+    if not table_exists:
+        return []
+
     return reduce(lambda x, y: [*x, *y], [
         [WorkspaceUserResourcePermission(target=f.id, workspace_id=f.workspace_id, user_id=wurm.user_id,
                                          auth_target_type=auth_target_type, auth_type="RESOURCE_PERMISSION_GROUP",
@@ -60,6 +76,7 @@ def auth_folder(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ('system_manage', '0002_refresh_collation_reindex'),
+        ('tools', '0001_initial'),
     ]
 
     operations = [
